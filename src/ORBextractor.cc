@@ -1096,9 +1096,56 @@ namespace ORB_SLAM3
         // Pre-compute the scale pyramid
         ComputePyramid(image);
 
+        Mat semanticMask;
+        if(!_mask.empty())
+        {
+            semanticMask = _mask.getMat();
+            if(!semanticMask.empty())
+            {
+                if(semanticMask.channels() == 3)
+                    cvtColor(semanticMask, semanticMask, cv::COLOR_BGR2GRAY);
+                else if(semanticMask.channels() == 4)
+                    cvtColor(semanticMask, semanticMask, cv::COLOR_BGRA2GRAY);
+
+                if(semanticMask.type() != CV_8UC1)
+                    semanticMask.convertTo(semanticMask, CV_8UC1);
+
+                if(semanticMask.size() != image.size())
+                    resize(semanticMask, semanticMask, image.size(), 0, 0, INTER_NEAREST);
+            }
+        }
+
         vector < vector<KeyPoint> > allKeypoints;
         ComputeKeyPointsOctTree(allKeypoints);
         //ComputeKeyPointsOld(allKeypoints);
+
+        if(!semanticMask.empty())
+        {
+            for (int level = 0; level < nlevels; ++level)
+            {
+                if(allKeypoints[level].empty())
+                    continue;
+
+                Mat maskLevel;
+                if(level == 0)
+                    maskLevel = semanticMask;
+                else
+                    resize(semanticMask, maskLevel, mvImagePyramid[level].size(), 0, 0, INTER_NEAREST);
+
+                vector<KeyPoint> filtered;
+                filtered.reserve(allKeypoints[level].size());
+                for(const KeyPoint &kp : allKeypoints[level])
+                {
+                    const int x = cvRound(kp.pt.x);
+                    const int y = cvRound(kp.pt.y);
+                    if(x >= 0 && y >= 0 && x < maskLevel.cols && y < maskLevel.rows && maskLevel.at<uchar>(y, x) > 0)
+                    {
+                        filtered.push_back(kp);
+                    }
+                }
+                allKeypoints[level].swap(filtered);
+            }
+        }
 
         Mat descriptors;
 
