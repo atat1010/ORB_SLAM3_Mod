@@ -69,7 +69,7 @@ build/
 
 lib/
 log/
-doc/
+docs/
 
 cmake_modules/
 cmake-build-debug/
